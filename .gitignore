@@ -24,13 +24,11 @@ wheels/
 *.egg
 
 # Model files
-*.pt
 *.pth
 *.onnx
 *.tflite
 
 # Videos
-*.mp4
 *.avi
 *.mov
 *.mkv

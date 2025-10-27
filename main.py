@@ -23,8 +23,8 @@ class SafetyDistanceMonitor:
     """
     Main system for monitoring worker safety distances
     """
-    def __init__(self, model_path, conf_threshold=0.5, iou_threshold=0.45,
-                 min_distance=1.5, device='cuda', camera_id=0):
+    def __init__(self, model_path, conf_threshold=0.25, iou_threshold=0.45,
+                 min_distance=1.5, device='cuda', camera_id=0, img_size=1280):
         """
         Initialize the monitoring system
 
@@ -35,6 +35,7 @@ class SafetyDistanceMonitor:
             min_distance: Minimum safe distance in meters
             device: Device for inference ('cuda' or 'cpu')
             camera_id: Camera device ID
+            img_size: Input image size (larger = more accurate but slower)
         """
         self.model_path = model_path
         self.conf_threshold = conf_threshold
@@ -43,22 +44,23 @@ class SafetyDistanceMonitor:
         self.device = device
         self.camera_id = camera_id
 
-        # Load YOLOv5s model
+        # Load YOLOv5s model with larger input size
         print("Loading YOLOv5s model...")
-        self.detector = YOLOv5Detector(model_path, device=device)
+        self.detector = YOLOv5Detector(model_path, device=device, img_size=img_size)
 
         # Initialize tracker
         self.tracker = ByteTracker()
 
-        # Initialize camera calibration
-        self.calibrator = CameraCalibrator()
+        # Initialize camera calibration with improved parameters
+        # Video dimensions will be set after loading video
+        self.calibrator = CameraCalibrator(video_width=1920, video_height=1080)
 
         # Visualization colors
         self.colors = self._generate_colors(100)
 
         # Statistics
         self.frame_count = 0
-        self.violation_count = 0
+        self.total_violation_frames = 0
         self.last_alert_time = 0
 
     def _generate_colors(self, n):
@@ -131,7 +133,6 @@ class SafetyDistanceMonitor:
 
                 if real_dist < self.min_distance:
                     violations.append((person1.track_id, person2.track_id, real_dist))
-                    self.violation_count += 1
 
         return violations
 
@@ -193,7 +194,7 @@ class SafetyDistanceMonitor:
         # Draw statistics
         stats_text = [
             f'Persons: {len(tracked_objects)}',
-            f'Violations: {len(violation_pairs)}',
+            f'Violation Pairs: {len(violation_pairs)}',
             f'Min Safe Distance: {self.min_distance}m'
         ]
 
@@ -246,10 +247,19 @@ class SafetyDistanceMonitor:
             # Detect safety violations
             violations = self.detect_violations(tracked_objects)
 
+            # Count unique violation pairs in this frame
+            violation_pairs = set(tuple(sorted([v[0], v[1]])) for v in violations)
+            if len(violation_pairs) > 0:
+                self.total_violation_frames += 1
+
             # Alert for violations
             if violations and time.time() - self.last_alert_time > 2:
-                print(f"WARNING: {len(set(tuple(sorted([v[0], v[1]])) for v in violations))} "
-                      f"violations detected!")
+                num_violations = len(violation_pairs)
+                num_people = len(tracked_objects)
+                if num_people > 0:
+                    # Calculate maximum possible pairs: C(n,2) = n*(n-1)/2
+                    max_pairs = num_people * (num_people - 1) // 2
+                    print(f"WARNING: {num_violations}/{max_pairs} violation pairs ({len(tracked_objects)} people)")
                 self.last_alert_time = time.time()
 
             # Draw results
@@ -269,10 +279,10 @@ class SafetyDistanceMonitor:
             cv2.imshow('Safety Distance Monitor', frame)
 
             # Save frame every 30 frames with detections
-            if self.frame_count % 30 == 0 and len(tracked_objects) > 0:
-                output_file = f'result_frame_{self.frame_count:04d}.jpg'
-                cv2.imwrite(output_file, frame)
-                print(f"✓ Saved frame {self.frame_count} to {output_file}")
+            # if self.frame_count % 30 == 0 and len(tracked_objects) > 0:
+            #     output_file = f'result_frame_{self.frame_count:04d}.jpg'
+            #     cv2.imwrite(output_file, frame)
+            #     print(f"✓ Saved frame {self.frame_count} to {output_file}")
 
             # Exit on 'q' key
             if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -292,8 +302,8 @@ def main():
                        help='Video source')
     parser.add_argument('--video', type=str, default=None,
                        help='Path to video file')
-    parser.add_argument('--conf', type=float, default=0.5,
-                       help='Confidence threshold')
+    parser.add_argument('--conf', type=float, default=0.25,
+                       help='Confidence threshold (lower = more detections)')
     parser.add_argument('--min-distance', type=float, default=1.5,
                        help='Minimum safe distance in meters')
     parser.add_argument('--device', type=str, default='cpu',
@@ -301,6 +311,8 @@ def main():
                        help='Device for inference')
     parser.add_argument('--camera-id', type=int, default=0,
                        help='Camera device ID')
+    parser.add_argument('--img-size', type=int, default=1280,
+                       help='Input image size (640, 1280, etc. Larger = more accurate but slower)')
 
     args = parser.parse_args()
 
@@ -316,7 +328,8 @@ def main():
         conf_threshold=args.conf,
         min_distance=args.min_distance,
         device=args.device,
-        camera_id=args.camera_id
+        camera_id=args.camera_id,
+        img_size=args.img_size
     )
 
     # Run monitoring
