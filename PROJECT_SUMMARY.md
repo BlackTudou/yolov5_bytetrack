@@ -78,6 +78,9 @@ python main.py --min-distance 1.8
 
 # 调整检测阈值
 python main.py --conf 0.6
+
+# 最终使用命令
+python main.py --source video --video palace.mp4 --device cpu --conf 0.2
 ```
 
 ## 核心特性说明

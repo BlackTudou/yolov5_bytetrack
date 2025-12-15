@@ -31,12 +31,12 @@ def example_custom():
         model_path='yolov5s.pt',
         conf_threshold=0.6,  # Higher confidence
         min_distance=2.0,    # 2 meters minimum
-        device='cuda',       # Use GPU
+        device='cpu',       # Use GPU
         camera_id=0
     )
 
     # Run with video file
-    monitor.run(source='video', video_path='test_video.mp4')
+    monitor.run(source='video', video_path='palace.mp4')
 
 
 def example_image_processing():
@@ -150,10 +150,10 @@ if __name__ == '__main__':
     # Uncomment the example you want to run
 
     # example_basic()
-    # example_custom()
+    example_custom()
     # example_image_processing()
     # example_calibration()
-    example_violation_detection()
+    # example_violation_detection()
 
     print()
     print("Done!")

@@ -67,6 +67,8 @@ python main.py --source camera --min-distance 1.8 --device cpu
 python main.py --source video --video test.mp4 --min-distance 2.0 --device cuda
 ```
 
+更多命令参考运行指南.md
+
 ## 工作原理
 
 ### 1. 目标检测
